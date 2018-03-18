@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"encoding/gob"
 	"github.com/boltdb/bolt"
+	"encoding/hex"
 )
 
 const dbFile  = "./dbFile"
@@ -63,6 +64,33 @@ func (bc *Blockchain)AddBlock(data string)  {
 		bc.tip = newBlock.Hash
 		return nil
 	})
+}
+
+func (bc *Blockchain)FindSpendableOutputs(address string, amount int) (int, map[string][]int) {
+	unspentOutputs := make(map[string][]int)
+	unspentTXs := bc.FindUnspentTransactions(address)
+	accumulated := 0
+
+	//对所有未花费的交易进行迭代，进行累加，找到大于等于amount
+	work:
+	for _,tx := range unspentTXs{
+		txID := hex.EncodeToString(tx.ID)
+		for outIdx,out := range tx.Vout {
+			if out.CanBeUnlockedWith(address) && accumulated < amount {
+				accumulated += out.Value
+				unspentOutputs[txID] = append(unspentTXs[txID], outIdx)
+				if accumulated >= amount {
+					break work
+				}
+			}
+		}
+	}
+	return accumulated,unspentOutputs
+}
+
+func (bc *Blockchain)MineBlock(transactions []*Transaction)  {
+
+	newBlock := NewBlock(transactions,lastHash)
 }
 
 func (b  *Block) Serialize() []byte {
